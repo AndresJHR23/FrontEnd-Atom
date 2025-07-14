@@ -1,0 +1,165 @@
+<mat-toolbar color="primary">
+  <span>Lista de Tareas</span>
+  <span class="spacer"></span>
+  <span *ngIf="currentUser" class="user-email">{{ currentUser.email }}</span>
+  
+  <!-- Menú de exportación -->
+  <button mat-icon-button [matMenuTriggerFor]="exportMenu" matTooltip="Exportar">
+    <mat-icon>download</mat-icon>
+  </button>
+  <mat-menu #exportMenu="matMenu">
+    <button mat-menu-item (click)="onExportToExcel()">
+      <mat-icon>grid_on</mat-icon>
+      <span>Exportar a Excel</span>
+    </button>
+    <button mat-menu-item (click)="onExportToCSV()">
+      <mat-icon>description</mat-icon>
+      <span>Exportar a CSV</span>
+    </button>
+    <mat-divider></mat-divider>
+    <button mat-menu-item (click)="onExportCompleted()">
+      <mat-icon>check_circle</mat-icon>
+      <span>Solo Completadas</span>
+    </button>
+    <button mat-menu-item (click)="onExportPending()">
+      <mat-icon>schedule</mat-icon>
+      <span>Solo Pendientes</span>
+    </button>
+  </mat-menu>
+
+  <button mat-icon-button [matMenuTriggerFor]="menu">
+    <mat-icon>more_vert</mat-icon>
+  </button>
+  <mat-menu #menu="matMenu">
+    <button mat-menu-item (click)="onLogout()">
+      <mat-icon>logout</mat-icon>
+      <span>Cerrar sesión</span>
+    </button>
+  </mat-menu>
+</mat-toolbar>
+
+<div class="tasks-container">
+  <!-- Estadísticas -->
+  <app-task-stats [tasks]="tasks"></app-task-stats>
+
+  <div class="header-section">
+    <h2>Mis Tareas</h2>
+    <button mat-raised-button color="primary" (click)="onCreateTask(); $event.stopPropagation()" class="add-button-header">
+      <mat-icon>add</mat-icon>
+      Nueva Tarea
+    </button>
+  </div>
+
+  <!-- Filtros y búsqueda -->
+  <div class="filters-section">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Buscar tareas</mat-label>
+      <input matInput 
+             [(ngModel)]="searchTerm" 
+             (input)="onSearchChange($any($event.target).value)"
+             placeholder="Buscar por título o descripción">
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Filtrar por estado</mat-label>
+      <mat-select [(value)]="filterStatus" (selectionChange)="onFilterChange($event.value)">
+        <mat-option value="all">Todas las tareas</mat-option>
+        <mat-option value="pending">Pendientes</mat-option>
+        <mat-option value="completed">Completadas</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button 
+            (click)="clearFilters()" 
+            [disabled]="searchTerm === '' && filterStatus === 'all'"
+            class="clear-filters-btn">
+      <mat-icon>clear</mat-icon>
+      Limpiar filtros
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner diameter="50"></mat-spinner>
+    <p>Cargando tareas...</p>
+  </div>
+
+  <div *ngIf="!loading && tasks.length === 0" class="empty-state">
+    <mat-icon class="empty-icon">assignment</mat-icon>
+    <h3>No tienes tareas</h3>
+    <p>¡Crea tu primera tarea para comenzar!</p>
+    <button mat-raised-button color="primary" (click)="onCreateTask()">
+      <mat-icon>add</mat-icon>
+      Crear tarea
+    </button>
+  </div>
+
+  <div *ngIf="!loading && filteredTasks.length === 0 && tasks.length > 0" class="no-results">
+    <mat-icon class="no-results-icon">search_off</mat-icon>
+    <h3>No se encontraron tareas</h3>
+    <p>Intenta cambiar los filtros de búsqueda</p>
+    <button mat-raised-button color="primary" (click)="clearFilters()">
+      Limpiar filtros
+    </button>
+  </div>
+
+  <div *ngIf="!loading && filteredTasks.length > 0" class="tasks-grid">
+    <mat-card 
+      *ngFor="let task of filteredTasks; trackBy: trackByTaskId" 
+      class="task-card"
+      [class.completed]="task.completed">
+      
+      <mat-card-header>
+        <div class="task-header">
+          <mat-checkbox 
+            [checked]="task.completed"
+            (click)="$event.stopPropagation()"
+            (change)="onToggleTask(task)"
+            color="primary">
+          </mat-checkbox>
+          <div class="task-title" [class.completed-text]="task.completed">
+            {{ task.title }}
+          </div>
+          <div class="task-actions">
+            <button 
+              mat-icon-button 
+              [matMenuTriggerFor]="taskMenu" 
+              (click)="$event.stopPropagation()"
+              [attr.data-task-id]="task.id">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #taskMenu="matMenu" xPosition="before" yPosition="below">
+              <button mat-menu-item (click)="onEditTask(task); $event.stopPropagation()">
+                <mat-icon>edit</mat-icon>
+                <span>Editar</span>
+              </button>
+              <button mat-menu-item (click)="onDeleteTask(task); $event.stopPropagation()" class="delete-option">
+                <mat-icon>delete</mat-icon>
+                <span>Eliminar</span>
+              </button>
+            </mat-menu>
+          </div>
+        </div>
+      </mat-card-header>
+
+      <mat-card-content (click)="$event.stopPropagation()">
+        <p class="task-description" [class.completed-text]="task.completed">
+          {{ task.description }}
+        </p>
+        <div class="task-dates">
+          <small class="created-date">
+            Creada: {{ task.createdAt | date:'short' }}
+          </small>
+          <small *ngIf="task.updatedAt !== task.createdAt" class="updated-date">
+            Actualizada: {{ task.updatedAt | date:'short' }}
+          </small>
+        </div>
+      </mat-card-content>
+
+      <div *ngIf="task.completed" class="completed-badge" (click)="$event.stopPropagation()">
+        <mat-icon>check_circle</mat-icon>
+        <span>Completada</span>
+      </div>
+    </mat-card>
+  </div>
+</div>
